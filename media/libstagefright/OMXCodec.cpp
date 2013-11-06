@@ -70,6 +70,13 @@
 #include "include/FLACDecoder.h"
 #endif
 
+#ifdef USE_TI_CUSTOM_DOMX
+#include <OMX_TI_Video.h>
+#include <OMX_TI_Index.h>
+#include <OMX_TI_IVCommon.h>
+#include <ctype.h>
+#endif
+
 namespace android {
 
 // Treat time out as an error if we have not received any output
@@ -1417,7 +1424,12 @@ status_t OMXCodec::setupAVCEncoderParameters(const sp<MetaData>& meta) {
     h264type.eLevel = static_cast<OMX_VIDEO_AVCLEVELTYPE>(profileLevel.mLevel);
 
     // XXX
+#ifdef USE_TI_DUCATI_H264_PROFILE
+    if ((strncmp(mComponentName, "OMX.TI.DUCATI1", 14) != 0)
+            && (h264type.eProfile != OMX_VIDEO_AVCProfileBaseline)) {
+#else
     if (h264type.eProfile != OMX_VIDEO_AVCProfileBaseline) {
+#endif
         ALOGW("Use baseline profile instead of %d for AVC recording",
             h264type.eProfile);
         h264type.eProfile = OMX_VIDEO_AVCProfileBaseline;

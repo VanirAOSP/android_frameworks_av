@@ -34,6 +34,10 @@
 #include <cutils/properties.h>
 #include "include/ExtendedUtils.h"
 
+#ifdef USE_TI_CUSTOM_DOMX
+#include <OMX_TI_IVCommon.h>
+#endif
+
 #if LOG_NDEBUG
 #define UNUSED_UNLESS_VERBOSE(x) (void)(x)
 #else
