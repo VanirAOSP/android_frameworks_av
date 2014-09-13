@@ -189,11 +189,7 @@ ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
             $(TOP)/hardware/qcom/media/mm-core/inc
     endif
 
-else #TARGET_ENABLE_AV_ENHANCEMENTS
-ifeq ($(TARGET_ENABLE_OFFLOAD_ENHANCEMENTS),true)
-    LOCAL_CFLAGS += -DENABLE_OFFLOAD_ENHANCEMENTS
-endif
-endif
+endif #TARGET_ENABLE_AV_ENHANCEMENTS
 
 LOCAL_SRC_FILES += \
         chromium_http_stub.cpp
