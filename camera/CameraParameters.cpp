@@ -144,6 +144,13 @@ const char CameraParameters::KEY_AE_BRACKET_HDR[] = "ae-bracket-hdr";
 /*only effective when KEY_AE_BRACKET_HDR set to ae_bracketing*/
 //const char CameraParameters::KEY_AE_BRACKET_SETTING_KEY[] = "ae-bracket-setting";
 
+#ifdef SAMSUNG_CAMERA_HARDWARE
+const char CameraParameters::KEY_ANTI_SHAKE_MODE[] = "anti-shake";
+const char CameraParameters::KEY_METERING[] = "metering";
+const char CameraParameters::KEY_WDR[] = "wdr";
+const char CameraParameters::KEY_WEATHER[] = "weather";
+#endif
+
 const char CameraParameters::TRUE[] = "true";
 const char CameraParameters::FALSE[] = "false";
 const char CameraParameters::FOCUS_DISTANCE_INFINITY[] = "Infinity";
