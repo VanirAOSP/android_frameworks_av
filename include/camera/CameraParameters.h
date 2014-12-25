@@ -641,6 +641,7 @@ public:
     static const char KEY_METERING[];
     static const char KEY_WDR[];
     static const char KEY_WEATHER[];
+    static const char KEY_SAMSUNG_CAMERA_MODE[];
 #endif
     static const char KEY_AE_BRACKET_HDR[];
 

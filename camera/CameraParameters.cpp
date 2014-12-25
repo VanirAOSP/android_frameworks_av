@@ -151,6 +151,7 @@ const char CameraParameters::KEY_ANTI_SHAKE_MODE[] = "anti-shake";
 const char CameraParameters::KEY_METERING[] = "metering";
 const char CameraParameters::KEY_WDR[] = "wdr";
 const char CameraParameters::KEY_WEATHER[] = "weather";
+const char CameraParameters::KEY_SAMSUNG_CAMERA_MODE[] = "cam_mode";
 #endif
 
 const char CameraParameters::TRUE[] = "true";
@@ -737,7 +738,6 @@ void CameraParameters::dump() const
     }
 }
 
-status_t CameraParameters::dump(int fd, const Vector<String16>& /*args*/) const
 #ifdef QCOM_HARDWARE
 void CameraParameters::setTouchIndexAec(int x, int y)
 {
