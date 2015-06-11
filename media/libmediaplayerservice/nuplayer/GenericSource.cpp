@@ -640,7 +640,7 @@ status_t NuPlayer::GenericSource::feedMoreTSData() {
 void NuPlayer::GenericSource::schedulePollBuffering() {
     sp<AMessage> msg = new AMessage(kWhatPollBuffering, id());
     msg->setInt32("generation", mPollBufferingGeneration);
-    msg->post(1000000ll);
+    msg->post((mBuffering || mPrepareBuffering) ? 100000ll : 1000000ll);
 }
 
 void NuPlayer::GenericSource::cancelPollBuffering() {
@@ -1563,6 +1563,7 @@ void NuPlayer::GenericSource::readBuffer(
     if (seekTimeUs >= 0) {
         options.setSeekTo(seekTimeUs, MediaSource::ReadOptions::SEEK_PREVIOUS_SYNC);
         seeking = true;
+        track->mPackets->clear();
     }
 
     if (mIsWidevine) {
