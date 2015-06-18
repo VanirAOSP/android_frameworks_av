@@ -958,6 +958,9 @@ void AudioPolicyService::setParameters(audio_io_handle_t ioHandle,
                                        const char *keyValuePairs,
                                        int delayMs)
 {
+#ifdef STE_HARDWARE
+    if(strcmp("voip=on",keyValuePairs) == 0) return;
+#endif
     mAudioCommandThread->parametersCommand(ioHandle, keyValuePairs,
                                            delayMs);
 }
