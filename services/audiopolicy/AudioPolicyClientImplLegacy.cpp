@@ -128,6 +128,9 @@ audio_io_handle_t aps_open_output_on_module(void *service __unused,
 #ifdef HAVE_PRE_KITKAT_AUDIO_POLICY_BLOB
     return open_output(module, pDevices, pSamplingRate, pFormat, pChannelMask,
                           pLatencyMs, flags, NULL);
+#elif HAVE_PRE_KITKAT_AUDIO_BLOB
+    return open_output(module, pDevices, pSamplingRate, pFormat, pChannelMask,
+                          pLatencyMs, flags, NULL);
 #else
     return open_output(module, pDevices, pSamplingRate, pFormat, pChannelMask,
                           pLatencyMs, flags, offloadInfo);
