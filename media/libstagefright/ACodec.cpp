@@ -603,11 +603,15 @@ status_t ACodec::allocateBuffersOnPort(OMX_U32 portIndex) {
 
     status_t err;
     if (mNativeWindow != NULL && portIndex == kPortIndexOutput) {
+#ifdef STE_HARDWARE
+        err = allocateOutputBuffersFromNativeWindow();
+#else
         if (mStoreMetaDataInOutputBuffers) {
             err = allocateOutputMetaDataBuffers();
         } else {
             err = allocateOutputBuffersFromNativeWindow();
         }
+#endif
     } else {
         OMX_PARAM_PORTDEFINITIONTYPE def;
         InitOMXParams(&def);
@@ -737,7 +741,11 @@ status_t ACodec::configureOutputBuffersFromNativeWindow(
             mNativeWindow.get(),
             def.format.video.nFrameWidth,
             def.format.video.nFrameHeight,
+#ifdef STE_HARDWARE
+            OMXCodec::OmxToHALFormat(def.format.video.eColorFormat));
+#else
             def.format.video.eColorFormat);
+#endif
 #endif
 
     if (err != 0) {
@@ -1361,6 +1369,16 @@ status_t ACodec::configureCodec(
     sp<AMessage> outputFormat = mNotify->dup(); // will use this for kWhatOutputFormatChanged
 
     mIsEncoder = encoder;
+#ifdef STE_HARDWARE
+    /* Meticulus:
+     * Software codecs don't require configuration? Not sure
+     * but skipping configuration for them seems to work.
+     */
+    if(strncmp("OMX.google.h264", mComponentName.c_str(), 15) == 0) {
+        ALOGI("Meticulus: Soft codec %s detected, skipping configureCodec\n", mComponentName.c_str());
+        return OK;
+    }
+#endif
 
     status_t err = setComponentRole(encoder /* isEncoder */, mime);
 
@@ -4963,7 +4981,9 @@ bool ACodec::BaseState::onOMXFillBufferDone(
                 mCodec->mSkipCutBuffer->submit(info->mData);
             }
             info->mData->meta()->setInt64("timeUs", timeUs);
-            info->mData->meta()->setObject("graphic-buffer", info->mGraphicBuffer);
+#ifndef STE_HARDWARE
+            info->mData->meta()->setObject("graphic-buffer", (android::RefBase*)&info->mGraphicBuffer);
+#endif
 
             sp<AMessage> notify = mCodec->mNotify->dup();
             notify->setInt32("what", CodecBase::kWhatDrainThisBuffer);

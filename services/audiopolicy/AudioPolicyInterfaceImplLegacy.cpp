@@ -267,6 +267,12 @@ status_t AudioPolicyService::getInputForAttr(const audio_attributes_t *attr,
       inputSource = AUDIO_SOURCE_VOICE_RECOGNITION;
 #endif
 
+#ifdef HAVE_PRE_KITKAT_AUDIO_BLOB
+    if (inputSource == AUDIO_SOURCE_HOTWORD) {
+        inputSource = AUDIO_SOURCE_VOICE_RECOGNITION;
+    }
+#endif
+
     sp<AudioPolicyEffects>audioPolicyEffects;
     {
         Mutex::Autolock _l(mLock);
@@ -520,6 +526,8 @@ status_t AudioPolicyService::queryDefaultPreProcessing(int audioSession,
 bool AudioPolicyService::isOffloadSupported(const audio_offload_info_t& info)
 {
 #if HAVE_PRE_KITKAT_AUDIO_POLICY_BLOB
+    return false;
+#elif HAVE_PRE_KITKAT_AUDIO_BLOB
     return false;
 #endif
     if (mpAudioPolicy == NULL) {
