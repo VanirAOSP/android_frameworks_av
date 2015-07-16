@@ -38,7 +38,7 @@
 #include <camera/ICameraServiceListener.h>
 
 #ifndef MAX_CAMERAS
-#define MAX_CAMERAS 4
+#define MAX_CAMERAS 2
 #endif
 
 namespace android {
