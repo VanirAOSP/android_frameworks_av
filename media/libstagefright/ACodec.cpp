@@ -4982,7 +4982,7 @@ bool ACodec::BaseState::onOMXFillBufferDone(
             }
             info->mData->meta()->setInt64("timeUs", timeUs);
 #ifndef STE_HARDWARE
-            info->mData->meta()->setObject("graphic-buffer", (android::RefBase*)&info->mGraphicBuffer);
+            info->mData->meta()->setObject("graphic-buffer", info->mGraphicBuffer);
 #endif
 
             sp<AMessage> notify = mCodec->mNotify->dup();
