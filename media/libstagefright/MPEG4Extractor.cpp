@@ -1781,13 +1781,13 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
             break;
         }
 
-        // xyz
+        // ©xyz
         case FOURCC(0xA9, 'x', 'y', 'z'):
         {
             *offset += chunk_size;
 
-            // Best case the total data length inside "xyz" box
-            // would be 8, for instance "xyz" + "\x00\x04\x15\xc7" + "0+0/",
+            // Best case the total data length inside "©xyz" box
+            // would be 8, for instance "©xyz" + "\x00\x04\x15\xc7" + "0+0/",
             // where "\x00\x04" is the text string length with value = 4,
             // "\0x15\xc7" is the language code = en, and "0+0" is a
             // location (string) value with longitude = 0 and latitude = 0.
@@ -2173,7 +2173,7 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
                 return ERROR_MALFORMED;
             }
 
-            uint8_t *buffer = new uint8_t[size + chunk_size];
+            uint8_t *buffer = new (std::nothrow) uint8_t[size + chunk_size];
             if (buffer == NULL) {
                 return ERROR_MALFORMED;
             }

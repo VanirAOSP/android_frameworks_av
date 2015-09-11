@@ -34,9 +34,6 @@ static void InitOMXParams(T *params) {
     params->nVersion.s.nStep = 0;
 }
 
-// Microsoft WAV GSM encoding packs two GSM frames into 65 bytes.
-static const int kMSGSMFrameSize = 65;
-
 SoftGSM::SoftGSM(
         const char *name,
         const OMX_CALLBACKTYPE *callbacks,
@@ -67,7 +64,7 @@ void SoftGSM::initPorts() {
     def.eDir = OMX_DirInput;
     def.nBufferCountMin = kNumBuffers;
     def.nBufferCountActual = def.nBufferCountMin;
-    def.nBufferSize = 1024 / kMSGSMFrameSize * kMSGSMFrameSize;
+    def.nBufferSize = sizeof(gsm_frame);
     def.bEnabled = OMX_TRUE;
     def.bPopulated = OMX_FALSE;
     def.eDomain = OMX_PortDomainAudio;
@@ -210,8 +207,8 @@ void SoftGSM::onQueueFilled(OMX_U32 /* portIndex */) {
             mSignalledError = true;
         }
 
-        if(((inHeader->nFilledLen / kMSGSMFrameSize) * kMSGSMFrameSize) != inHeader->nFilledLen) {
-            ALOGE("input buffer not multiple of %d (%d).", kMSGSMFrameSize, inHeader->nFilledLen);
+        if(((inHeader->nFilledLen / 65) * 65) != inHeader->nFilledLen) {
+            ALOGE("input buffer not multiple of 65 (%d).", inHeader->nFilledLen);
             notify(OMX_EventError, OMX_ErrorUndefined, 0, NULL);
             mSignalledError = true;
         }
@@ -260,25 +257,6 @@ int SoftGSM::DecodeGSM(gsm handle,
     }
     return ret;
 }
-
-void SoftGSM::onPortFlushCompleted(OMX_U32 portIndex) {
-    if (portIndex == 0) {
-        gsm_destroy(mGsm);
-        mGsm = gsm_create();
-        int msopt = 1;
-        gsm_option(mGsm, GSM_OPT_WAV49, &msopt);
-    }
-}
-
-void SoftGSM::onReset() {
-    gsm_destroy(mGsm);
-    mGsm = gsm_create();
-    int msopt = 1;
-    gsm_option(mGsm, GSM_OPT_WAV49, &msopt);
-    mSignalledError = false;
-}
-
-
 
 
 }  // namespace android
