@@ -94,6 +94,10 @@
 #else
 #define DLOGD
 #endif // DOLBY_END
+#ifndef UINT32_MAX
+#define UINT32_MAX       (4294967295U)
+#endif
+
 namespace android {
 
 class MPEG4Source : public MediaSource {

@@ -684,10 +684,7 @@ void ID3::Iterator::findFrame() {
             }
 
             if (baseSize == 0) {
-                /* Don't try to parse a frame with zero-sized data. Skip this
-                 * header entirely */
-                mOffset += 10; // http://id3.org/id3v2.4.0-structure section 3.1
-                continue;
+                return;
             }
 
             // Prevent integer overflow when adding
