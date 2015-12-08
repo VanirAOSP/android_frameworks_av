@@ -496,10 +496,19 @@ void NuPlayer::GenericSource::finishPrepareAsync() {
 
 void NuPlayer::GenericSource::notifyPreparedAndCleanup(status_t err) {
     if (err != OK) {
-        Mutex::Autolock _l(mSourceLock);
-        mDataSource.clear();
-        mCachedSource.clear();
-        mHttpSource.clear();
+        {
+            sp<DataSource> dataSource = mDataSource;
+            sp<NuCachedSource2> cachedSource = mCachedSource;
+            sp<DataSource> httpSource = mHttpSource;
+            {
+                Mutex::Autolock _l(mDisconnectLock);
+                mDataSource.clear();
+                mDecryptHandle = NULL;
+                mDrmManagerClient = NULL;
+                mCachedSource.clear();
+                mHttpSource.clear();
+            }
+        }
         mBitrate = -1;
 
         cancelPollBuffering();
