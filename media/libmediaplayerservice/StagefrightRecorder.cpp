@@ -185,7 +185,8 @@ status_t StagefrightRecorder::setAudioEncoder(audio_encoder ae) {
 status_t StagefrightRecorder::setVideoEncoder(video_encoder ve) {
     ALOGV("setVideoEncoder: %d", ve);
     if (ve < VIDEO_ENCODER_DEFAULT ||
-        ve >= VIDEO_ENCODER_LIST_END) {
+        (ve >= VIDEO_ENCODER_LIST_END && ve <= VIDEO_ENCODER_LIST_VENDOR_START) ||
+        ve >= VIDEO_ENCODER_LIST_VENDOR_END) {
         ALOGE("Invalid video encoder: %d", ve);
         return BAD_VALUE;
     }
@@ -1278,7 +1279,8 @@ status_t StagefrightRecorder::checkVideoEncoderCapabilities() {
             (mVideoEncoder == VIDEO_ENCODER_H263 ? MEDIA_MIMETYPE_VIDEO_H263 :
              mVideoEncoder == VIDEO_ENCODER_MPEG_4_SP ? MEDIA_MIMETYPE_VIDEO_MPEG4 :
              mVideoEncoder == VIDEO_ENCODER_VP8 ? MEDIA_MIMETYPE_VIDEO_VP8 :
-             mVideoEncoder == VIDEO_ENCODER_H264 ? MEDIA_MIMETYPE_VIDEO_AVC : ""),
+             mVideoEncoder == VIDEO_ENCODER_H264 ? MEDIA_MIMETYPE_VIDEO_AVC :
+             mVideoEncoder == VIDEO_ENCODER_H265 ? MEDIA_MIMETYPE_VIDEO_HEVC : ""),
             false /* decoder */, true /* hwCodec */, &codecs);
 
     if (!mCaptureFpsEnable) {
@@ -1365,8 +1367,10 @@ void StagefrightRecorder::setDefaultVideoEncoderIfNecessary() {
             int videoCodec = mEncoderProfiles->getCamcorderProfileParamByName(
                     "vid.codec", mCameraId, CAMCORDER_QUALITY_LOW);
 
-            if (videoCodec > VIDEO_ENCODER_DEFAULT &&
-                videoCodec < VIDEO_ENCODER_LIST_END) {
+            if ((videoCodec > VIDEO_ENCODER_DEFAULT &&
+                 videoCodec < VIDEO_ENCODER_LIST_END) ||
+                (videoCodec > VIDEO_ENCODER_LIST_VENDOR_START &&
+                 videoCodec < VIDEO_ENCODER_LIST_VENDOR_END)) {
                 mVideoEncoder = (video_encoder)videoCodec;
             } else {
                 // default to H.264 if camcorder profile not available
@@ -1544,8 +1548,12 @@ status_t StagefrightRecorder::setupCameraSource(
     return OK;
 }
 
-bool StagefrightRecorder::setCustomVideoEncoderMime(const video_encoder /*videoEncoder*/,
-        sp<AMessage> /*format*/) {
+bool StagefrightRecorder::setCustomVideoEncoderMime(const video_encoder videoEncoder,
+        sp<AMessage> format) {
+    if (videoEncoder == VIDEO_ENCODER_H265) {
+        format->setString("mime", MEDIA_MIMETYPE_VIDEO_HEVC);
+        return true;
+    }
     return false;
 }
 
