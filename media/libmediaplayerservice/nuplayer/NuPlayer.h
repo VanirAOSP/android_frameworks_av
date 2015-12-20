@@ -283,8 +283,6 @@ protected:
 
     void writeTrackInfo(Parcel* reply, const sp<AMessage> format) const;
 
-    void performTearDown(const sp<AMessage> &msg);
-
     DISALLOW_EVIL_CONSTRUCTORS(NuPlayer);
 };
 
