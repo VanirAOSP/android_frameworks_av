@@ -1032,7 +1032,7 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
                     int64_t delay = (media_time  * samplerate + 500000) / 1000000;
                     mLastTrack->meta->setInt32(kKeyEncoderDelay, delay);
 
-                    int64_t paddingus = duration - (segment_duration + media_time);
+                    int64_t paddingus = duration - (int64_t)(segment_duration + media_time);
                     if (paddingus < 0) {
                         // track duration from media header (which is what kKeyDuration is) might
                         // be slightly shorter than the segment duration, which would make the
@@ -1979,6 +1979,9 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
                         data_offset + 8, &buffer, 4) < 4) {
                 return ERROR_IO;
             }
+
+            if (mLastTrack == NULL)
+                return ERROR_MALFORMED;
 
             uint32_t type = ntohl(buffer);
             // For the 3GPP file format, the handler-type within the 'hdlr' box
