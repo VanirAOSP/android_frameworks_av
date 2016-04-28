@@ -65,19 +65,15 @@ public:
         remote()->transact(MIX_STATE_UPDATE, data, &reply, IBinder::FLAG_ONEWAY);
     }
 
-    void onOutputSessionEffectsUpdate(audio_stream_type_t stream,
-                                      audio_session_t sessionId,
-                                      audio_output_flags_t flags,
-                                      audio_channel_mask_t channelMask,
-                                      uid_t uid, bool added)
+    void onOutputSessionEffectsUpdate(sp<AudioSessionInfo>& info, bool added)
     {
         Parcel data, reply;
         data.writeInterfaceToken(IAudioPolicyServiceClient::getInterfaceDescriptor());
-        data.writeInt32(stream);
-        data.writeInt32(sessionId);
-        data.writeInt32(flags);
-        data.writeInt32(channelMask);
-        data.writeInt32(uid);
+        data.writeInt32(info->mStream);
+        data.writeInt32(info->mSessionId);
+        data.writeInt32(info->mFlags);
+        data.writeInt32(info->mChannelMask);
+        data.writeInt32(info->mUid);
         data.writeInt32(added ? 1 : 0);
         remote()->transact(OUTPUT_SESSION_EFFECTS_UPDATE, data, &reply, IBinder::FLAG_ONEWAY);
     }
@@ -116,7 +112,10 @@ status_t BnAudioPolicyServiceClient::onTransact(
             audio_channel_mask_t channelMask = static_cast<audio_channel_mask_t>(data.readInt32());
             uid_t uid = static_cast<uid_t>(data.readInt32());
             bool added = data.readInt32() > 0;
-            onOutputSessionEffectsUpdate(stream, sessionId, flags, channelMask, uid, added);
+
+            sp<AudioSessionInfo> info = new AudioSessionInfo(
+                    sessionId, stream, flags, channelMask, uid);
+            onOutputSessionEffectsUpdate(info, added);
             return NO_ERROR;
     }
     default:

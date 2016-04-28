@@ -18,7 +18,6 @@
 //#define LOG_NDEBUG 0
 
 #include <utils/Log.h>
-#include <media/AudioPolicyHelper.h>
 #include "AudioPolicyService.h"
 #include "ServiceUtilities.h"
 
@@ -162,8 +161,8 @@ status_t AudioPolicyService::getOutputForAttr(const audio_attributes_t *attr,
     if (mAudioPolicyManager == NULL) {
         return NO_INIT;
     }
-    ALOGV("getOutput()");
-    status_t status;
+    ALOGV("getOutputForAttr()");
+    status_t status = NO_ERROR;
     sp<AudioPolicyEffects> audioPolicyEffects;
     {
         Mutex::Autolock _l(mLock);
@@ -178,14 +177,16 @@ status_t AudioPolicyService::getOutputForAttr(const audio_attributes_t *attr,
         }
         status = mAudioPolicyManager->getOutputForAttr(attr, output, session, stream, uid, samplingRate,
                                  format, channelMask, flags, selectedDeviceId, offloadInfo);
+
         audioPolicyEffects = mAudioPolicyEffects;
     }
 
-    if (audioPolicyEffects != 0) {
-        audioPolicyEffects->doAddOutputSessionEffects(*output, *stream, session, flags, channelMask, uid);
+    if (status == NO_ERROR && audioPolicyEffects != 0) {
+        audioPolicyEffects->updateOutputAudioSessionInfo(*output,
+                *stream, session, flags, channelMask, uid);
     }
 
-	return status;
+    return status;
 }
 
 status_t AudioPolicyService::startOutput(audio_io_handle_t output,
@@ -281,10 +282,16 @@ void AudioPolicyService::doReleaseOutput(audio_io_handle_t output,
                                          audio_session_t session)
 {
     ALOGV("doReleaseOutput from tid %d", gettid());
-    Mutex::Autolock _l(mLock);
-    onOutputSessionEffectsUpdate(stream, session,
-                        AUDIO_OUTPUT_FLAG_NONE, 0, -1, false);
-    mAudioPolicyManager->releaseOutput(output, stream, session);
+    sp<AudioPolicyEffects>audioPolicyEffects;
+    {
+        Mutex::Autolock _l(mLock);
+        audioPolicyEffects = mAudioPolicyEffects;
+        mAudioPolicyManager->releaseOutput(output, stream, session);
+    }
+    if (audioPolicyEffects != 0) {
+        audioPolicyEffects->releaseOutputAudioSessionInfo(output,
+                stream, session);
+    }
 }
 
 status_t AudioPolicyService::getInputForAttr(const audio_attributes_t *attr,
@@ -730,5 +737,26 @@ status_t AudioPolicyService::stopAudioSource(audio_io_handle_t handle)
 
     return mAudioPolicyManager->stopAudioSource(handle);
 }
+
+status_t AudioPolicyService::listAudioSessions(audio_stream_type_t streams,
+                                               Vector< sp<AudioSessionInfo>> &sessions)
+{
+    sp<AudioPolicyEffects> audioPolicyEffects;
+    {
+        Mutex::Autolock _l(mLock);
+        if (mAudioPolicyManager == NULL) {
+            return NO_INIT;
+        }
+        audioPolicyEffects = mAudioPolicyEffects;
+    }
+
+    if (audioPolicyEffects != 0) {
+        return audioPolicyEffects->listAudioSessions(streams, sessions);
+    }
+
+    // no errors here if effects are not available
+    return NO_ERROR;
+}
+
 
 }; // namespace android

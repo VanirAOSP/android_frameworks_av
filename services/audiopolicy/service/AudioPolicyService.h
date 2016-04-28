@@ -202,7 +202,8 @@ public:
                                       audio_io_handle_t *handle);
     virtual status_t stopAudioSource(audio_io_handle_t handle);
 
-    virtual status_t setEffectSessionCallbacksEnabled(bool enabled);
+    virtual status_t listAudioSessions(audio_stream_type_t stream,
+                                       Vector< sp<AudioSessionInfo>>& sessions);
 
             status_t doStartOutput(audio_io_handle_t output,
                                    audio_stream_type_t stream,
@@ -231,16 +232,8 @@ public:
             void onDynamicPolicyMixStateUpdate(String8 regId, int32_t state);
             void doOnDynamicPolicyMixStateUpdate(String8 regId, int32_t state);
 
-            void onOutputSessionEffectsUpdate(audio_stream_type_t stream,
-                                              audio_session_t sessionId,
-                                              audio_output_flags_t flags,
-                                              audio_channel_mask_t channelMask,
-                                              uid_t uid, bool added);
-            void doOnOutputSessionEffectsUpdate(audio_stream_type_t stream,
-                                                audio_session_t sessionId,
-                                                audio_output_flags_t flags,
-                                                audio_channel_mask_t channelMask,
-                                                uid_t uid, bool added);
+            void onOutputSessionEffectsUpdate(sp<AudioSessionInfo>& info, bool added);
+            void doOnOutputSessionEffectsUpdate(sp<AudioSessionInfo>& info, bool added);
 
 private:
                         AudioPolicyService() ANDROID_API;
@@ -317,11 +310,7 @@ private:
                                                           int delayMs);
                     void        dynamicPolicyMixStateUpdateCommand(String8 regId, int32_t state);
                     void        insertCommand_l(AudioCommand *command, int delayMs = 0);
-                    void        effectSessionUpdateCommand(audio_stream_type_t stream,
-                                                           audio_session_t sessionId,
-                                                           audio_output_flags_t flags,
-                                                           audio_channel_mask_t channelMask,
-                                                           uid_t uid, bool added);
+                    void        effectSessionUpdateCommand(sp<AudioSessionInfo>& info, bool added);
 
     private:
         class AudioCommandData;
@@ -420,11 +409,7 @@ private:
 
         class EffectSessionUpdateData : public AudioCommandData {
         public:
-            audio_stream_type_t mStream;
-            audio_session_t mSessionId;
-            audio_output_flags_t mFlags;
-            audio_channel_mask_t mChannelMask;
-            uid_t mUid;
+            sp<AudioSessionInfo> mAudioSessionInfo;
             bool mAdded;
         };
 
@@ -537,11 +522,8 @@ private:
 
         virtual audio_unique_id_t newAudioUniqueId();
 
-        virtual void onOutputSessionEffectsUpdate(audio_stream_type_t stream,
-                                                  audio_session_t sessionId,
-                                                  audio_output_flags_t flags,
-                                                  audio_channel_mask_t channelMask,
-                                                  uid_t uid, bool added);
+        virtual void onOutputSessionEffectsUpdate(sp<AudioSessionInfo>& info, bool added);
+
 
      private:
         AudioPolicyService *mAudioPolicyService;
@@ -559,12 +541,8 @@ private:
                             void      onAudioPatchListUpdate();
                             void      onDynamicPolicyMixStateUpdate(String8 regId, int32_t state);
                             void      setAudioPortCallbacksEnabled(bool enabled);
-                            void      setEffectSessionCallbacksEnabled(bool enabled);
-                            void      onOutputSessionEffectsUpdate(audio_stream_type_t stream,
-                                                                   audio_session_t sessionId,
-                                                                   audio_output_flags_t flags,
-                                                                   audio_channel_mask_t channelMask,
-                                                                   uid_t uid, bool added);
+                            void      onOutputSessionEffectsUpdate(sp<AudioSessionInfo>& info,
+                                                                   bool added);
                 // IBinder::DeathRecipient
                 virtual     void        binderDied(const wp<IBinder>& who);
 
@@ -576,7 +554,6 @@ private:
         const uid_t                         mUid;
         const sp<IAudioPolicyServiceClient> mAudioPolicyServiceClient;
               bool                          mAudioPortCallbacksEnabled;
-              bool                          mEffectSessionCallbacksEnabled;
     };
 
     // Internal dump utilities.
