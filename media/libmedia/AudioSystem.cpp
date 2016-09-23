@@ -667,12 +667,7 @@ status_t AudioSystem::AudioFlingerClient::removeAudioDeviceCallback(
 // protected by gLockAPS
 sp<IAudioPolicyService> AudioSystem::gAudioPolicyService;
 sp<AudioSystem::AudioPolicyServiceClient> AudioSystem::gAudioPolicyServiceClient;
-bool AudioSystem::gForbidPolicyClients = false;
 
-void AudioSystem::setForbidPolicyClients()
-{
-    gForbidPolicyClients = true;
-}
 
 // establish binder interface to AudioPolicy service
 const sp<IAudioPolicyService> AudioSystem::get_audio_policy_service()
@@ -701,7 +696,7 @@ const sp<IAudioPolicyService> AudioSystem::get_audio_policy_service()
         }
         ap = gAudioPolicyService;
     }
-    if (apc != 0 && !gForbidPolicyClients) {
+    if (apc != 0) {
         ap->registerClient(apc);
     }
 

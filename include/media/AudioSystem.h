@@ -268,7 +268,6 @@ public:
     static void clearAudioConfigCache();
 
     static const sp<IAudioPolicyService> get_audio_policy_service();
-    static void setForbidPolicyClients();
 
     // helpers for android.media.AudioManager.getProperty(), see description there for meaning
     static uint32_t getPrimaryOutputSamplingRate();
@@ -454,7 +453,6 @@ private:
     static audio_channel_mask_t gPrevInChannelMask;
 
     static sp<IAudioPolicyService> gAudioPolicyService;
-    static bool gForbidPolicyClients;
 };
 
 };  // namespace android

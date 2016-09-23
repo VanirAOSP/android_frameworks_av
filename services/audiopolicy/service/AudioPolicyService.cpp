@@ -62,7 +62,6 @@ AudioPolicyService::AudioPolicyService()
     : BnAudioPolicyService(), mpAudioPolicyDev(NULL), mpAudioPolicy(NULL),
       mAudioPolicyManager(NULL), mAudioPolicyClient(NULL), mPhoneState(AUDIO_MODE_INVALID)
 {
-    AudioSystem::setForbidPolicyClients();
 }
 
 void AudioPolicyService::onFirstRef()
