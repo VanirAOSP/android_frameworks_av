@@ -46,7 +46,6 @@
 #include <media/mediarecorder.h>
 #include <cutils/properties.h>
 
-#include "include/avc_utils.h"
 #include "include/ESDS.h"
 #include "include/HevcUtils.h"
 #include <stagefright/AVExtensions.h>
@@ -121,6 +120,7 @@ public:
 
 private:
     enum {
+        kMinCttsOffsetTimeUs = 500,
         kMaxCttsOffsetTimeUs = 1000000LL,  // 1 second
         kSampleArraySize = 1000,
     };
@@ -301,6 +301,7 @@ private:
 
     int64_t mMinCttsOffsetTimeUs;
     int64_t mMaxCttsOffsetTimeUs;
+    int64_t mCttsOffsetTimeUs;
 
     // Sequence parameter set or picture parameter set
     struct AVCParamSet {
@@ -2465,6 +2466,12 @@ status_t MPEG4Writer::Track::threadEntry() {
                 }
             }
 
+            if (!mIsAudio) {
+                int32_t fps;
+                mMeta->findInt32(kKeyFrameRate, &fps);
+                int64_t cttsOffsetTimeUs = 1000000LL/fps;
+                mCttsOffsetTimeUs = cttsOffsetTimeUs + kMinCttsOffsetTimeUs; //delta factor
+            }
             buffer->release();
             buffer = NULL;
 
@@ -2587,7 +2594,10 @@ status_t MPEG4Writer::Track::threadEntry() {
 
             mLastDecodingTimeUs = decodingTimeUs;
             cttsOffsetTimeUs =
-                    timestampUs + kMaxCttsOffsetTimeUs - decodingTimeUs;
+                    timestampUs + mCttsOffsetTimeUs - decodingTimeUs;
+            if (cttsOffsetTimeUs < 0) {
+                cttsOffsetTimeUs = 0;
+            }
             if (WARN_UNLESS(cttsOffsetTimeUs >= 0ll, "for %s track", trackName)) {
                 copy->release();
                 mSource->stop();
@@ -2610,12 +2620,10 @@ status_t MPEG4Writer::Track::threadEntry() {
             }
 
             if (mStszTableEntries->count() == 0) {
-                // Force the first ctts table entry to have one single entry
-                // so that we can do adjustment for the initial track start
-                // time offset easily in writeCttsBox().
                 lastCttsOffsetTimeTicks = currCttsOffsetTimeTicks;
-                addOneCttsTableEntry(1, currCttsOffsetTimeTicks);
-                cttsSampleCount = 0;      // No sample in ctts box is pending
+                //addOneCttsTableEntry(1, currCttsOffsetTimeTicks);
+                //cttsSampleCount = 0;      // No sample in ctts box is pending
+                cttsSampleCount = 1;
             } else {
                 if (currCttsOffsetTimeTicks != lastCttsOffsetTimeTicks) {
                     addOneCttsTableEntry(cttsSampleCount, lastCttsOffsetTimeTicks);

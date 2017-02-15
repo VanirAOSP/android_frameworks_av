@@ -226,12 +226,6 @@ enum {
                                    // transfer Function, value defined by ColorAspects.Transfer.
     kKeyColorMatrix      = 'cMtx', // int32_t,
                                    // color Matrix, value defined by ColorAspects.MatrixCoeffs.
-    kKeyArbitraryMode     = 'ArbM',
-
-    // Indicate if it is OK to hold on to the MediaBuffer and not
-    // release it immediately
-    kKeyCanDeferRelease   = 'drel', // bool (int32_t)
-
     kKeyTemporalLayerId  = 'iLyr', // int32_t, temporal layer-id. 0-based (0 => base layer)
     kKeyTemporalLayerCount = 'cLyr', // int32_t, number of temporal layers encoded
     kKeyArbitraryMode     = 'ArbM',
@@ -287,6 +281,14 @@ public:
         TYPE_FLOAT    = 'floa',
         TYPE_POINTER  = 'ptr ',
         TYPE_RECT     = 'rect',
+    };
+
+    static const size_t kSharedMemThreshold = 10 * 1024;
+
+    enum ParcelAllocationType {
+        NULL_ALLOCATION,
+        SHARED_ALLOCATION,
+        INLINE_ALLOCATION
     };
 
     void clear();

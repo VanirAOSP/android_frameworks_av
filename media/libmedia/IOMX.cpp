@@ -805,7 +805,7 @@ status_t BnOMX::onTransact(
                                     }
                                     default:
                                         TRESPASS();
-                                }
+                            }
                             }
                         }
                     }

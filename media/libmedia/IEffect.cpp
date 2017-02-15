@@ -25,9 +25,6 @@
 
 namespace android {
 
-// Maximum command/reply size expected
-#define EFFECT_PARAM_SIZE_MAX       65536
-
 enum {
     ENABLE = IBinder::FIRST_CALL_TRANSACTION,
     DISABLE,
@@ -159,10 +156,6 @@ status_t BnEffect::onTransact(
             uint32_t cmdSize = data.readInt32();
             char *cmd = NULL;
             if (cmdSize) {
-                if (cmdSize > EFFECT_PARAM_SIZE_MAX) {
-                    reply->writeInt32(NO_MEMORY);
-                    return NO_ERROR;
-                }
                 cmd = (char *)calloc(cmdSize, 1);
                 if (cmd == NULL) {
                     reply->writeInt32(NO_MEMORY);
@@ -174,11 +167,6 @@ status_t BnEffect::onTransact(
             uint32_t replySz = replySize;
             char *resp = NULL;
             if (replySize) {
-                if (replySize > EFFECT_PARAM_SIZE_MAX) {
-                    free(cmd);
-                    reply->writeInt32(NO_MEMORY);
-                    return NO_ERROR;
-                }
                 resp = (char *)calloc(replySize, 1);
                 if (resp == NULL) {
                     free(cmd);
