@@ -80,6 +80,7 @@ void NuPlayer::GenericSource::resetDataSource() {
     mHttpSource.clear();
     mUri.clear();
     mUriHeaders.clear();
+    mSources.clear();
     if (mFd >= 0) {
         close(mFd);
         mFd = -1;
@@ -1438,7 +1439,6 @@ void NuPlayer::GenericSource::readBuffer(
     if (mIsWidevine || couldReadMultiple) {
         options.setNonBlocking();
     }
-
     for (size_t numBuffers = 0; numBuffers < maxBuffers; ) {
         Vector<MediaBuffer *> mediaBuffers;
         status_t err = NO_ERROR;

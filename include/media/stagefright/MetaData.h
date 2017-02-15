@@ -234,6 +234,11 @@ enum {
 
     kKeyTemporalLayerId  = 'iLyr', // int32_t, temporal layer-id. 0-based (0 => base layer)
     kKeyTemporalLayerCount = 'cLyr', // int32_t, number of temporal layers encoded
+    kKeyArbitraryMode     = 'ArbM',
+
+    // Indicate if it is OK to hold on to the MediaBuffer and not
+    // release it immediately
+    kKeyCanDeferRelease   = 'drel', // bool (int32_t)
 };
 
 enum {

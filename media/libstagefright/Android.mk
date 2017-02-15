@@ -1,3 +1,16 @@
+# This file was modified by Dolby Laboratories, Inc. The portions of the
+# code that are surrounded by "DOLBY..." are copyrighted and
+# licensed separately, as follows:
+#
+# (C)  2016 Dolby Laboratories, Inc.
+# All rights reserved.
+#
+# This program is protected under international and U.S. Copyright laws as
+# an unpublished work. This program is confidential and proprietary to the
+# copyright owners. Reproduction or disclosure, in whole or in part, or the
+# production of derivative works therefrom without the express permission of
+# the copyright owners is prohibited.
+#
 LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
@@ -110,10 +123,6 @@ ifeq ($(BOARD_CANT_REALLOCATE_OMX_BUFFERS),true)
 LOCAL_CFLAGS += -DBOARD_CANT_REALLOCATE_OMX_BUFFERS
 endif
 
-ifeq ($(TARGET_USE_AVC_BASELINE_PROFILE), true)
-LOCAL_CFLAGS += -DUSE_AVC_BASELINE_PROFILE
-endif
-
 LOCAL_STATIC_LIBRARIES := \
         libstagefright_color_conversion \
         libyuv_static \
@@ -160,6 +169,11 @@ LOCAL_C_INCLUDES += $(call project-path-for,qcom-media)/mm-core/inc
 ifneq (,$(filter userdebug eng,$(TARGET_BUILD_VARIANT)))
 LOCAL_CFLAGS += -DENABLE_STAGEFRIGHT_EXPERIMENTS
 endif
+# DOLBY_START
+ifeq ($(strip $(DOLBY_ENABLE)),true)
+    LOCAL_CFLAGS += $(dolby_cflags)
+endif
+# DOLBY_END
 
 ifeq ($(call is-vendor-board-platform,QCOM),true)
 ifeq ($(strip $(AUDIO_FEATURE_ENABLED_EXTN_FLAC_DECODER)),true)

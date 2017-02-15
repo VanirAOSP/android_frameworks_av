@@ -392,6 +392,7 @@ void MetaData::dumpToLog() const {
 }
 
 status_t MetaData::writeToParcel(Parcel &parcel) {
+    status_t status = OK;
     status_t ret;
     size_t numItems = mItems.size();
     ret = parcel.writeUint32(uint32_t(numItems));
