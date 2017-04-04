@@ -1528,7 +1528,6 @@ sp<AudioFlinger::EffectHandle> AudioFlinger::ThreadBase::createEffect_l(
             if (mType == OFFLOAD || (mType == DIRECT && mIsDirectPcm)) {
                 setVal = true;
             }
-
             if (lStatus != NO_ERROR) {
                 goto Exit;
             }
