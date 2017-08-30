@@ -278,9 +278,9 @@ status_t SampleTable::setSampleToChunkParams(
         return OK;
     }
 
-    if ((kMaxOffset - 8 -
+    if ((off64_t)(kMaxOffset - 8 -
             ((mNumSampleToChunkOffsets - 1) * sizeof(SampleToChunkEntry)))
-            < (size_t)mSampleToChunkOffset) {
+            < mSampleToChunkOffset) {
         return ERROR_MALFORMED;
     }
 
@@ -566,7 +566,7 @@ status_t SampleTable::setSyncSampleParams(off64_t data_offset, size_t data_size)
 
     if (mDataSource->readAt(data_offset + 8, mSyncSamples,
             (size_t)allocSize) != (ssize_t)allocSize) {
-        delete mSyncSamples;
+        delete[] mSyncSamples;
         mSyncSamples = NULL;
         return ERROR_IO;
     }
@@ -701,7 +701,13 @@ void SampleTable::buildSampleEntriesTable() {
             }
 
             ++sampleIndex;
-            sampleTime += delta;
+            if (sampleTime > UINT32_MAX - delta) {
+                ALOGE("%u + %u would overflow, clamping",
+                    sampleTime, delta);
+                sampleTime = UINT32_MAX;
+            } else {
+                sampleTime += delta;
+            }
         }
     }
 
@@ -992,4 +998,3 @@ int32_t SampleTable::getCompositionTimeOffset(uint32_t sampleIndex) {
 }
 
 }  // namespace android
-

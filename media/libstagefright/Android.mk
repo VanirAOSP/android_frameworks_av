@@ -1,36 +1,23 @@
-# This file was modified by Dolby Laboratories, Inc. The portions of the
-# code that are surrounded by "DOLBY..." are copyrighted and
-# licensed separately, as follows:
-#
-# (C)  2016 Dolby Laboratories, Inc.
-# All rights reserved.
-#
-# This program is protected under international and U.S. Copyright laws as
-# an unpublished work. This program is confidential and proprietary to the
-# copyright owners. Reproduction or disclosure, in whole or in part, or the
-# production of derivative works therefrom without the express permission of
-# the copyright owners is prohibited.
-#
 LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
 
 LOCAL_SRC_FILES:=                         \
         ACodec.cpp                        \
+        ACodecBufferChannel.cpp           \
         AACExtractor.cpp                  \
         AACWriter.cpp                     \
         AMRExtractor.cpp                  \
         AMRWriter.cpp                     \
         AudioPlayer.cpp                   \
         AudioSource.cpp                   \
+        BufferImpl.cpp                    \
         CallbackDataSource.cpp            \
         CameraSource.cpp                  \
         CameraSourceTimeLapse.cpp         \
-        CodecBase.cpp                     \
         DataConverter.cpp                 \
         DataSource.cpp                    \
         DataURISource.cpp                 \
-        DRMExtractor.cpp                  \
         ESDS.cpp                          \
         FileSource.cpp                    \
         FLACExtractor.cpp                 \
@@ -48,7 +35,6 @@ LOCAL_SRC_FILES:=                         \
         MediaCodecList.cpp                \
         MediaCodecListOverrides.cpp       \
         MediaCodecSource.cpp              \
-        MediaDefs.cpp                     \
         MediaExtractor.cpp                \
         MediaSync.cpp                     \
         MidiExtractor.cpp                 \
@@ -59,7 +45,6 @@ LOCAL_SRC_FILES:=                         \
         NuMediaExtractor.cpp              \
         OMXClient.cpp                     \
         OggExtractor.cpp                  \
-        ProcessInfo.cpp                   \
         SampleIterator.cpp                \
         SampleTable.cpp                   \
         SimpleDecodingSource.cpp          \
@@ -73,22 +58,19 @@ LOCAL_SRC_FILES:=                         \
         VBRISeeker.cpp                    \
         VideoFrameScheduler.cpp           \
         WAVExtractor.cpp                  \
-        WAVEWriter.cpp                    \
-        WVMExtractor.cpp                  \
         XINGSeeker.cpp                    \
         avc_utils.cpp                     \
-        FFMPEGSoftCodec.cpp               \
 
 LOCAL_C_INCLUDES:= \
         $(TOP)/frameworks/av/include/media/ \
-        $(TOP)/frameworks/av/media/libavextensions \
-        $(TOP)/frameworks/av/media/libstagefright/mpeg2ts \
         $(TOP)/frameworks/av/include/media/stagefright/timedtext \
         $(TOP)/frameworks/native/include/media/hardware \
         $(TOP)/frameworks/native/include/media/openmax \
         $(TOP)/external/flac/include \
         $(TOP)/external/tremolo \
         $(TOP)/external/libvpx/libwebm \
+        $(TOP)/external/icu/icu4c/source/common \
+        $(TOP)/external/icu/icu4c/source/i18n \
         $(TOP)/system/netd/include \
         $(call include-path-for, audio-utils)
 
@@ -96,32 +78,25 @@ LOCAL_SHARED_LIBRARIES := \
         libaudioutils \
         libbinder \
         libcamera_client \
+        libcrypto \
         libcutils \
         libdl \
         libdrmframework \
         libexpat \
         libgui \
-        libicui18n \
-        libicuuc \
         liblog \
         libmedia \
+        libaudioclient \
+        libmediametrics \
         libmediautils \
         libnetd_client \
-        libopus \
         libsonivox \
-        libssl \
         libstagefright_omx \
-        libstagefright_yuv \
-        libsync \
         libui \
         libutils \
         libvorbisidec \
-        libz \
-        libpowermanager \
-
-ifeq ($(BOARD_CANT_REALLOCATE_OMX_BUFFERS),true)
-LOCAL_CFLAGS += -DBOARD_CANT_REALLOCATE_OMX_BUFFERS
-endif
+        libmediadrm \
+        libnativewindow \
 
 LOCAL_STATIC_LIBRARIES := \
         libstagefright_color_conversion \
@@ -136,71 +111,30 @@ LOCAL_STATIC_LIBRARIES := \
         libstagefright_mpeg2ts \
         libstagefright_id3 \
         libFLAC \
-        libmedia_helper \
-
-LOCAL_WHOLE_STATIC_LIBRARIES := libavextensions
 
 LOCAL_SHARED_LIBRARIES += \
-        libstagefright_enc_common \
-        libstagefright_avc_common \
+        libmedia_helper \
         libstagefright_foundation \
         libdl \
         libRScpp \
+        libhidlbase \
+        libhidlmemory \
+        android.hidl.allocator@1.0 \
+        android.hidl.memory@1.0 \
+        android.hardware.media.omx@1.0 \
+        libstagefright_xmlparser@1.0 \
 
-ifeq ($(BOARD_USE_SAMSUNG_CAMERAFORMAT_NV21), true)
-# This needs flag requires the following string constant in
-# CameraParametersExtra.h:
-#
-# const char CameraParameters::PIXEL_FORMAT_YUV420SP_NV21[] = "nv21";
-LOCAL_CFLAGS += -DUSE_SAMSUNG_CAMERAFORMAT_NV21
-endif
-
-ifneq ($(TARGET_USES_MEDIA_EXTENSIONS),true)
-ifeq ($(TARGET_HAS_LEGACY_CAMERA_HAL1),true)
-LOCAL_CFLAGS += -DCAMCORDER_GRALLOC_SOURCE
-endif
-endif
-
-ifeq ($(TARGET_OMX_LEGACY_RESCALING),true)
-LOCAL_CFLAGS += -DUSE_LEGACY_RESCALING
-endif
+LOCAL_EXPORT_SHARED_LIBRARY_HEADERS := libmedia
 
 LOCAL_CFLAGS += -Wno-multichar -Werror -Wno-error=deprecated-declarations -Wall
-
-LOCAL_C_INCLUDES += $(call project-path-for,qcom-media)/mm-core/inc
 
 # enable experiments only in userdebug and eng builds
 ifneq (,$(filter userdebug eng,$(TARGET_BUILD_VARIANT)))
 LOCAL_CFLAGS += -DENABLE_STAGEFRIGHT_EXPERIMENTS
 endif
-# DOLBY_START
-ifeq ($(strip $(DOLBY_ENABLE)),true)
-    LOCAL_CFLAGS += $(dolby_cflags)
-endif
-# DOLBY_END
 
-ifeq ($(call is-vendor-board-platform,QCOM),true)
-ifeq ($(strip $(AUDIO_FEATURE_ENABLED_EXTN_FLAC_DECODER)),true)
-LOCAL_CFLAGS += -DQTI_FLAC_DECODER
-endif
-endif
-
-LOCAL_CLANG := true
-LOCAL_SANITIZE := unsigned-integer-overflow signed-integer-overflow
-
-# FFMPEG plugin
-LOCAL_C_INCLUDES += $(TOP)/external/stagefright-plugins/include
-
-#LOCAL_CFLAGS += -DLOG_NDEBUG=0
-
-ifeq ($(BOARD_USE_SAMSUNG_COLORFORMAT), true)
-LOCAL_CFLAGS += -DUSE_SAMSUNG_COLORFORMAT
-
-# Include native color format header path
-LOCAL_C_INCLUDES += \
-	$(TOP)/hardware/samsung/exynos4/hal/include \
-	$(TOP)/hardware/samsung/exynos4/include
-endif
+LOCAL_SANITIZE := unsigned-integer-overflow signed-integer-overflow cfi
+LOCAL_SANITIZE_DIAG := cfi
 
 LOCAL_MODULE:= libstagefright
 

@@ -12,25 +12,6 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *
- * This file was modified by Dolby Laboratories, Inc. The portions of the
- * code that are surrounded by "DOLBY..." are copyrighted and
- * licensed separately, as follows:
- *
- *  (C) 2016 Dolby Laboratories, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *
  */
 
 //#define LOG_NDEBUG 0
@@ -60,11 +41,8 @@
 
 #include <cutils/properties.h>
 #include <expat.h>
-#include <stagefright/AVExtensions.h>
 
 namespace android {
-
-const char *kMaxEncoderInputBuffers = "max-video-encoder-input-buffers";
 
 static Mutex sInitMutex;
 
@@ -191,19 +169,47 @@ sp<IMediaCodecList> MediaCodecList::getInstance() {
     return sRemoteList;
 }
 
+// Treblized media codec list will be located in /odm/etc or /vendor/etc.
+static const char *kConfigLocationList[] =
+        {"/odm/etc", "/vendor/etc", "/etc"};
+static const int kConfigLocationListSize =
+        (sizeof(kConfigLocationList) / sizeof(kConfigLocationList[0]));
+
+#define MEDIA_CODECS_CONFIG_FILE_PATH_MAX_LENGTH 128
+
+static bool findMediaCodecListFileFullPath(const char *file_name, char *out_path) {
+    for (int i = 0; i < kConfigLocationListSize; i++) {
+        snprintf(out_path,
+                 MEDIA_CODECS_CONFIG_FILE_PATH_MAX_LENGTH,
+                 "%s/%s",
+                 kConfigLocationList[i],
+                 file_name);
+        struct stat file_stat;
+        if (stat(out_path, &file_stat) == 0 && S_ISREG(file_stat.st_mode)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 MediaCodecList::MediaCodecList()
     : mInitCheck(NO_INIT),
       mUpdate(false),
       mGlobalSettings(new AMessage()) {
-    parseTopLevelXMLFile(AVUtils::get()->getCustomCodecsLocation());
-    parseTopLevelXMLFile(AVUtils::get()->getCustomCodecsPerformanceLocation(),
-                            true/* ignore_errors */);
+    char config_file_path[MEDIA_CODECS_CONFIG_FILE_PATH_MAX_LENGTH];
+    if (findMediaCodecListFileFullPath("media_codecs.xml", config_file_path)) {
+        parseTopLevelXMLFile(config_file_path);
+    }
+    if (findMediaCodecListFileFullPath("media_codecs_performance.xml",
+                                       config_file_path)) {
+        parseTopLevelXMLFile(config_file_path, true/* ignore_errors */);
+    }
     parseTopLevelXMLFile(kProfilingResults, true/* ignore_errors */);
 }
 
 void MediaCodecList::parseTopLevelXMLFile(const char *codecs_xml, bool ignore_errors) {
     // get href_base
-    char *href_base_end = strrchr(codecs_xml, '/');
+    const char *href_base_end = strrchr(codecs_xml, '/');
     if (href_base_end != NULL) {
         mHrefBase = AString(codecs_xml, href_base_end - codecs_xml + 1);
     }
@@ -217,9 +223,7 @@ void MediaCodecList::parseTopLevelXMLFile(const char *codecs_xml, bool ignore_er
     if (mInitCheck != OK) {
         return;  // this may fail if IMediaPlayerService is not available.
     }
-    mOMX = client.interface();
     parseXMLFile(codecs_xml);
-    mOMX.clear();
 
     if (mInitCheck != OK) {
         if (ignore_errors) {
@@ -909,18 +913,18 @@ ssize_t MediaCodecList::findCodecByType(
     return -ENOENT;
 }
 
-static status_t limitFoundMissingAttr(AString name, const char *attr, bool found = true) {
+static status_t limitFoundMissingAttr(const AString &name, const char *attr, bool found = true) {
     ALOGE("limit '%s' with %s'%s' attribute", name.c_str(),
             (found ? "" : "no "), attr);
     return -EINVAL;
 }
 
-static status_t limitError(AString name, const char *msg) {
+static status_t limitError(const AString &name, const char *msg) {
     ALOGE("limit '%s' %s", name.c_str(), msg);
     return -EINVAL;
 }
 
-static status_t limitInvalidAttr(AString name, const char *attr, AString value) {
+static status_t limitInvalidAttr(const AString &name, const char *attr, const AString &value) {
     ALOGE("limit '%s' with invalid '%s' attribute (%s)", name.c_str(),
             attr, value.c_str());
     return -EINVAL;
@@ -965,13 +969,7 @@ status_t MediaCodecList::addLimit(const char **attrs) {
     // complexity: range + default
     bool found;
 
-    // VT specific limits
-    if (name.find("vt-") == 0) {
-        AString value;
-        if (msg->findString("value", &value) && value.size()) {
-            mCurrentInfo->addDetail(name, value);
-        }
-    } else if (name == "aspect-ratio" || name == "bitrate" || name == "block-count"
+    if (name == "aspect-ratio" || name == "bitrate" || name == "block-count"
             || name == "blocks-per-second" || name == "complexity"
             || name == "frame-rate" || name == "quality" || name == "size"
             || name == "measured-blocks-per-second" || name.startsWith("measured-frame-rate-")) {
@@ -1150,9 +1148,6 @@ const sp<AMessage> MediaCodecList::getGlobalSettings() const {
 //static
 bool MediaCodecList::isSoftwareCodec(const AString &componentName) {
     return componentName.startsWithIgnoreCase("OMX.google.")
-#ifdef DOLBY_ENABLE
-        || componentName.startsWithIgnoreCase("OMX.dolby.")
-#endif
         || !componentName.startsWithIgnoreCase("OMX.");
 }
 
@@ -1203,7 +1198,7 @@ void MediaCodecList::findMatchingCodecs(
         }
     }
 
-    if (flags & kPreferSoftwareCodecs) {
+    if (flags & kPreferSoftwareCodecs || property_get_bool("debug.stagefright.swcodec", false)) {
         matches->sort(compareSoftwareCodecsFirst);
     }
 }

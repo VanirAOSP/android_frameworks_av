@@ -23,12 +23,11 @@
 #include <cutils/misc.h>
 #include <media/AudioEffect.h>
 #include <system/audio.h>
-#include <hardware/audio_effect.h>
-#include <audio_effects/audio_effects_conf.h>
+#include <system/audio_effects/audio_effects_conf.h>
 #include <utils/Vector.h>
 #include <utils/SortedVector.h>
 #include <cutils/config_utils.h>
-#include "AudioPolicyService.h"
+#include <binder/IPCThreadState.h>
 #include "AudioPolicyEffects.h"
 #include "ServiceUtilities.h"
 
@@ -38,13 +37,10 @@ namespace android {
 // AudioPolicyEffects Implementation
 // ----------------------------------------------------------------------------
 
-AudioPolicyEffects::AudioPolicyEffects(AudioPolicyService *audioPolicyService) :
-    mAudioPolicyService(audioPolicyService)
+AudioPolicyEffects::AudioPolicyEffects()
 {
     // load automatic audio effect modules
-    if (access(AUDIO_EFFECT_VENDOR_CONFIG_FILE2, R_OK) == 0) {
-        loadAudioEffectConfig(AUDIO_EFFECT_VENDOR_CONFIG_FILE2);
-    } else if (access(AUDIO_EFFECT_VENDOR_CONFIG_FILE, R_OK) == 0) {
+    if (access(AUDIO_EFFECT_VENDOR_CONFIG_FILE, R_OK) == 0) {
         loadAudioEffectConfig(AUDIO_EFFECT_VENDOR_CONFIG_FILE);
     } else if (access(AUDIO_EFFECT_DEFAULT_CONFIG_FILE, R_OK) == 0) {
         loadAudioEffectConfig(AUDIO_EFFECT_DEFAULT_CONFIG_FILE);
@@ -61,11 +57,11 @@ AudioPolicyEffects::~AudioPolicyEffects()
     }
     mInputSources.clear();
 
-    for (i = 0; i < mInputs.size(); i++) {
-        mInputs.valueAt(i)->mEffects.clear();
-        delete mInputs.valueAt(i);
+    for (i = 0; i < mInputSessions.size(); i++) {
+        mInputSessions.valueAt(i)->mEffects.clear();
+        delete mInputSessions.valueAt(i);
     }
-    mInputs.clear();
+    mInputSessions.clear();
 
     // release audio output processing resources
     for (i = 0; i < mOutputStreams.size(); i++) {
@@ -97,19 +93,20 @@ status_t AudioPolicyEffects::addInputEffects(audio_io_handle_t input,
         ALOGV("addInputEffects(): no processing needs to be attached to this source");
         return status;
     }
-    ssize_t idx = mInputs.indexOfKey(input);
-    EffectVector *inputDesc;
+    ssize_t idx = mInputSessions.indexOfKey(audioSession);
+    EffectVector *sessionDesc;
     if (idx < 0) {
-        inputDesc = new EffectVector(audioSession);
-        mInputs.add(input, inputDesc);
+        sessionDesc = new EffectVector(audioSession);
+        mInputSessions.add(audioSession, sessionDesc);
     } else {
         // EffectVector is existing and we just need to increase ref count
-        inputDesc = mInputs.valueAt(idx);
+        sessionDesc = mInputSessions.valueAt(idx);
     }
-    inputDesc->mRefCount++;
+    sessionDesc->mRefCount++;
 
-    ALOGV("addInputEffects(): input: %d, refCount: %d", input, inputDesc->mRefCount);
-    if (inputDesc->mRefCount == 1) {
+    ALOGV("addInputEffects(): input: %d, refCount: %d", input, sessionDesc->mRefCount);
+    if (sessionDesc->mRefCount == 1) {
+        int64_t token = IPCThreadState::self()->clearCallingIdentity();
         Vector <EffectDesc *> effects = mInputSources.valueAt(index)->mEffects;
         for (size_t i = 0; i < effects.size(); i++) {
             EffectDesc *effect = effects[i];
@@ -127,30 +124,32 @@ status_t AudioPolicyEffects::addInputEffects(audio_io_handle_t input,
             }
             ALOGV("addInputEffects(): added Fx %s on source: %d",
                   effect->mName, (int32_t)aliasSource);
-            inputDesc->mEffects.add(fx);
+            sessionDesc->mEffects.add(fx);
         }
-        inputDesc->setProcessorEnabled(true);
+        sessionDesc->setProcessorEnabled(true);
+        IPCThreadState::self()->restoreCallingIdentity(token);
     }
     return status;
 }
 
 
-status_t AudioPolicyEffects::releaseInputEffects(audio_io_handle_t input)
+status_t AudioPolicyEffects::releaseInputEffects(audio_io_handle_t input,
+                                                 audio_session_t audioSession)
 {
     status_t status = NO_ERROR;
 
     Mutex::Autolock _l(mLock);
-    ssize_t index = mInputs.indexOfKey(input);
+    ssize_t index = mInputSessions.indexOfKey(audioSession);
     if (index < 0) {
         return status;
     }
-    EffectVector *inputDesc = mInputs.valueAt(index);
-    inputDesc->mRefCount--;
-    ALOGV("releaseInputEffects(): input: %d, refCount: %d", input, inputDesc->mRefCount);
-    if (inputDesc->mRefCount == 0) {
-        inputDesc->setProcessorEnabled(false);
-        delete inputDesc;
-        mInputs.removeItemsAt(index);
+    EffectVector *sessionDesc = mInputSessions.valueAt(index);
+    sessionDesc->mRefCount--;
+    ALOGV("releaseInputEffects(): input: %d, refCount: %d", input, sessionDesc->mRefCount);
+    if (sessionDesc->mRefCount == 0) {
+        sessionDesc->setProcessorEnabled(false);
+        delete sessionDesc;
+        mInputSessions.removeItemsAt(index);
         ALOGV("releaseInputEffects(): all effects released");
     }
     return status;
@@ -164,16 +163,16 @@ status_t AudioPolicyEffects::queryDefaultInputEffects(audio_session_t audioSessi
 
     Mutex::Autolock _l(mLock);
     size_t index;
-    for (index = 0; index < mInputs.size(); index++) {
-        if (mInputs.valueAt(index)->mSessionId == audioSession) {
+    for (index = 0; index < mInputSessions.size(); index++) {
+        if (mInputSessions.valueAt(index)->mSessionId == audioSession) {
             break;
         }
     }
-    if (index == mInputs.size()) {
+    if (index == mInputSessions.size()) {
         *count = 0;
         return BAD_VALUE;
     }
-    Vector< sp<AudioEffect> > effects = mInputs.valueAt(index)->mEffects;
+    Vector< sp<AudioEffect> > effects = mInputSessions.valueAt(index)->mEffects;
 
     for (size_t i = 0; i < effects.size(); i++) {
         effect_descriptor_t desc = effects[i]->descriptor();
@@ -228,8 +227,6 @@ status_t AudioPolicyEffects::addOutputSessionEffects(audio_io_handle_t output,
 {
     status_t status = NO_ERROR;
 
-    ALOGV("addOutputSessionEffects %d", audioSession);
-
     Mutex::Autolock _l(mLock);
     // create audio processors according to stream
     // FIXME: should we have specific post processing settings for internal streams?
@@ -237,22 +234,6 @@ status_t AudioPolicyEffects::addOutputSessionEffects(audio_io_handle_t output,
     if (stream >= AUDIO_STREAM_PUBLIC_CNT) {
         stream = AUDIO_STREAM_MUSIC;
     }
-
-    // send the streaminfo notification only once
-    ssize_t sidx = mOutputAudioSessionInfo.indexOfKey(audioSession);
-    if (sidx >= 0) {
-        // AudioSessionInfo is existing and we just need to increase ref count
-        sp<AudioSessionInfo> info = mOutputAudioSessionInfo.valueAt(sidx);
-        info->mRefCount++;
-
-        if (info->mRefCount == 1) {
-            mAudioPolicyService->onOutputSessionEffectsUpdate(info, true);
-        }
-        ALOGV("addOutputSessionEffects(): session info %d refCount=%d", audioSession, info->mRefCount);
-    } else {
-        ALOGV("addOutputSessionEffects(): no output stream info found for stream");
-    }
-
     ssize_t index = mOutputStreams.indexOfKey(stream);
     if (index < 0) {
         ALOGV("addOutputSessionEffects(): no output processing needed for this stream");
@@ -273,6 +254,8 @@ status_t AudioPolicyEffects::addOutputSessionEffects(audio_io_handle_t output,
     ALOGV("addOutputSessionEffects(): session: %d, refCount: %d",
           audioSession, procDesc->mRefCount);
     if (procDesc->mRefCount == 1) {
+        // make sure effects are associated to audio server even if we are executing a binder call
+        int64_t token = IPCThreadState::self()->clearCallingIdentity();
         Vector <EffectDesc *> effects = mOutputStreams.valueAt(index)->mEffects;
         for (size_t i = 0; i < effects.size(); i++) {
             EffectDesc *effect = effects[i];
@@ -291,88 +274,9 @@ status_t AudioPolicyEffects::addOutputSessionEffects(audio_io_handle_t output,
         }
 
         procDesc->setProcessorEnabled(true);
+        IPCThreadState::self()->restoreCallingIdentity(token);
     }
     return status;
-}
-
-status_t AudioPolicyEffects::releaseOutputAudioSessionInfo(audio_io_handle_t /* output */,
-                                           audio_stream_type_t stream,
-                                           audio_session_t session)
-{
-    if (uint32_t(stream) >= AUDIO_STREAM_CNT) {
-        return BAD_VALUE;
-    }
-
-    Mutex::Autolock _l(mLock);
-
-    ssize_t idx = mOutputAudioSessionInfo.indexOfKey(session);
-    if (idx >= 0) {
-        sp<AudioSessionInfo> info = mOutputAudioSessionInfo.valueAt(idx);
-        if (info->mRefCount == 0) {
-            mOutputAudioSessionInfo.removeItemsAt(idx);
-        }
-        ALOGV("releaseOutputAudioSessionInfo() sessionId=%d refcount=%d",
-                session, info->mRefCount);
-    } else {
-        ALOGV("releaseOutputAudioSessionInfo() no session info found");
-    }
-    return NO_ERROR;
-}
-
-status_t AudioPolicyEffects::updateOutputAudioSessionInfo(audio_io_handle_t /* output */,
-                                           audio_stream_type_t stream,
-                                           audio_session_t session,
-                                           audio_output_flags_t flags,
-                                           audio_channel_mask_t channelMask, uid_t uid)
-{
-    if (uint32_t(stream) >= AUDIO_STREAM_CNT) {
-        return BAD_VALUE;
-    }
-
-    Mutex::Autolock _l(mLock);
-
-    // TODO: Handle other stream types based on client registration
-    if (stream != AUDIO_STREAM_MUSIC) {
-        return NO_ERROR;
-    }
-
-    // update AudioSessionInfo. This is used in the stream open/close path
-    // to notify userspace applications about session creation and
-    // teardown, allowing the app to make decisions about effects for
-    // a particular stream. This is independent of the current
-    // output_session_processing feature which forcibly attaches a
-    // static list of effects to a stream.
-    ssize_t idx = mOutputAudioSessionInfo.indexOfKey(session);
-    sp<AudioSessionInfo> info;
-    if (idx < 0) {
-        info = new AudioSessionInfo(session, stream, flags, channelMask, uid);
-        mOutputAudioSessionInfo.add(session, info);
-    } else {
-        // the streaminfo may actually change
-        info = mOutputAudioSessionInfo.valueAt(idx);
-        info->mFlags = flags;
-        info->mChannelMask = channelMask;
-    }
-
-    ALOGV("updateOutputAudioSessionInfo() sessionId=%d, flags=0x%x, channelMask=0x%x uid=%d refCount=%d",
-            info->mSessionId, info->mFlags, info->mChannelMask, info->mUid, info->mRefCount);
-
-    return NO_ERROR;
-}
-
-status_t AudioPolicyEffects::listAudioSessions(audio_stream_type_t streams,
-                                               Vector< sp<AudioSessionInfo>> &sessions)
-{
-    ALOGV("listAudioSessions() streams %d", streams);
-
-    for (unsigned int i = 0; i < mOutputAudioSessionInfo.size(); i++) {
-        sp<AudioSessionInfo> info = mOutputAudioSessionInfo.valueAt(i);
-        if (streams == -1 || info->mStream == streams) {
-            sessions.push_back(info);
-        }
-    }
-
-    return NO_ERROR;
 }
 
 status_t AudioPolicyEffects::releaseOutputSessionEffects(audio_io_handle_t output,
@@ -384,19 +288,7 @@ status_t AudioPolicyEffects::releaseOutputSessionEffects(audio_io_handle_t outpu
     (void) stream; // argument not used for now
 
     Mutex::Autolock _l(mLock);
-    ssize_t index = mOutputAudioSessionInfo.indexOfKey(audioSession);
-    if (index >= 0) {
-        sp<AudioSessionInfo> info = mOutputAudioSessionInfo.valueAt(index);
-        info->mRefCount--;
-        if (info->mRefCount == 0) {
-            mAudioPolicyService->onOutputSessionEffectsUpdate(info, false);
-        }
-        ALOGV("releaseOutputSessionEffects(): session=%d refCount=%d", info->mSessionId, info->mRefCount);
-    } else {
-        ALOGV("releaseOutputSessionEffects: no stream info was attached to this stream");
-    }
-
-    index = mOutputSessions.indexOfKey(audioSession);
+    ssize_t index = mOutputSessions.indexOfKey(audioSession);
     if (index < 0) {
         ALOGV("releaseOutputSessionEffects: no output processing was attached to this stream");
         return NO_ERROR;

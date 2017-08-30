@@ -17,7 +17,7 @@
 #include <gui/Surface.h>
 
 #include <media/ICrypto.h>
-#include <media/stagefright/foundation/ABuffer.h>
+#include <media/MediaCodecBuffer.h>
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/foundation/ALooper.h>
 #include <media/stagefright/foundation/AMessage.h>
@@ -230,7 +230,7 @@ status_t SimpleDecodingSource::doRead(
                 break;
             }
 
-            sp<ABuffer> in_buffer;
+            sp<MediaCodecBuffer> in_buffer;
             if (res == OK) {
                 res = mCodec->getInputBuffer(in_ix, &in_buffer);
             }
@@ -344,7 +344,7 @@ status_t SimpleDecodingSource::doRead(
             return res;
         }
 
-        sp<ABuffer> out_buffer;
+        sp<MediaCodecBuffer> out_buffer;
         res = mCodec->getOutputBuffer(out_ix, &out_buffer);
         if (res != OK) {
             ALOGW("[%s] could not get output buffer #%zu",

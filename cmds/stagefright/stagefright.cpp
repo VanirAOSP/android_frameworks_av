@@ -12,24 +12,6 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *
- * This file was modified by Dolby Laboratories, Inc. The portions of the
- * code that are surrounded by "DOLBY..." are copyrighted and
- * licensed separately, as follows:
- *
- *  (C) 2011-2016 Dolby Laboratories, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
  */
 
 #include <inttypes.h>
@@ -81,6 +63,9 @@
 #include <gui/GLConsumer.h>
 #include <gui/Surface.h>
 #include <gui/SurfaceComposerClient.h>
+
+#include <android/hardware/media/omx/1.0/IOmx.h>
+#include <media/omx/1.0/WOmx.h>
 
 using namespace android;
 
@@ -419,7 +404,7 @@ static void playSource(sp<IMediaSource> &source) {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct DetectSyncSource : public MediaSource {
-    DetectSyncSource(const sp<IMediaSource> &source);
+    explicit DetectSyncSource(const sp<IMediaSource> &source);
 
     virtual status_t start(MetaData *params = NULL);
     virtual status_t stop();
@@ -650,11 +635,6 @@ static void dumpCodecProfiles(bool queryDecoders) {
         MEDIA_MIMETYPE_AUDIO_G711_ALAW, MEDIA_MIMETYPE_AUDIO_VORBIS,
         MEDIA_MIMETYPE_VIDEO_VP8, MEDIA_MIMETYPE_VIDEO_VP9,
         MEDIA_MIMETYPE_VIDEO_DOLBY_VISION
-#ifdef DOLBY_ENABLE
-        ,
-        MEDIA_MIMETYPE_AUDIO_AC3,
-        MEDIA_MIMETYPE_AUDIO_EAC3
-#endif // DOLBY_END
     };
 
     const char *codecType = queryDecoders? "decoder" : "encoder";
@@ -927,13 +907,23 @@ int main(int argc, char **argv) {
     }
 
     if (listComponents) {
-        sp<IServiceManager> sm = defaultServiceManager();
-        sp<IBinder> binder = sm->getService(String16("media.codec"));
-        sp<IMediaCodecService> service = interface_cast<IMediaCodecService>(binder);
+        sp<IOMX> omx;
+        if (property_get_bool("persist.media.treble_omx", true)) {
+            using namespace ::android::hardware::media::omx::V1_0;
+            sp<IOmx> tOmx = IOmx::getService();
 
-        CHECK(service.get() != NULL);
+            CHECK(tOmx.get() != NULL);
 
-        sp<IOMX> omx = service->getOMX();
+            omx = new utils::LWOmx(tOmx);
+        } else {
+            sp<IServiceManager> sm = defaultServiceManager();
+            sp<IBinder> binder = sm->getService(String16("media.codec"));
+            sp<IMediaCodecService> service = interface_cast<IMediaCodecService>(binder);
+
+            CHECK(service.get() != NULL);
+
+            omx = service->getOMX();
+        }
         CHECK(omx.get() != NULL);
 
         List<IOMX::ComponentInfo> list;
@@ -987,8 +977,6 @@ int main(int argc, char **argv) {
             gSurface = new Surface(producer);
         }
     }
-
-    DataSource::RegisterDefaultSniffers();
 
     status_t err = OK;
 
@@ -1060,6 +1048,10 @@ int main(int argc, char **argv) {
                 bool haveVideo = false;
                 for (size_t i = 0; i < numTracks; ++i) {
                     sp<IMediaSource> source = extractor->getTrack(i);
+                    if (source == nullptr) {
+                        fprintf(stderr, "skip NULL track %zu, track count %zu.\n", i, numTracks);
+                        continue;
+                    }
 
                     const char *mime;
                     CHECK(source->getFormat()->findCString(
@@ -1122,6 +1114,10 @@ int main(int argc, char **argv) {
                 }
 
                 mediaSource = extractor->getTrack(i);
+                if (mediaSource == nullptr) {
+                    fprintf(stderr, "skip NULL track %zu, total tracks %zu.\n", i, numTracks);
+                    return -1;
+                }
             }
         }
 

@@ -27,10 +27,8 @@
 
 #include <media/ICrypto.h>
 #include <media/IMediaHTTPService.h>
+#include <media/MediaCodecBuffer.h>
 
-#include <media/stagefright/FFMPEGSoftCodec.h>
-
-#include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/ColorConverter.h>
@@ -48,8 +46,6 @@
 
 #include <CharacterEncodingDetector.h>
 
-#include <stagefright/AVExtensions.h>
-
 namespace android {
 
 static const int64_t kBufferTimeOutUs = 30000ll; // 30 msec
@@ -59,8 +55,6 @@ StagefrightMetadataRetriever::StagefrightMetadataRetriever()
     : mParsedMetaData(false),
       mAlbumArt(NULL) {
     ALOGV("StagefrightMetadataRetriever()");
-
-    DataSource::RegisterDefaultSniffers();
 }
 
 StagefrightMetadataRetriever::~StagefrightMetadataRetriever() {
@@ -104,7 +98,6 @@ status_t StagefrightMetadataRetriever::setDataSource(
     fd = dup(fd);
 
     ALOGV("setDataSource(%d, %" PRId64 ", %" PRId64 ")", fd, offset, length);
-    AVUtils::get()->printFileName(fd);
 
     clearMetadata();
     mSource = new FileSource(fd, offset, length);
@@ -163,7 +156,6 @@ static VideoFrame *extractVideoFrame(
     // TODO: Use Flexible color instead
     videoFormat->setInt32("color-format", OMX_COLOR_FormatYUV420Planar);
 
-    videoFormat->setInt32("thumbnail-mode", 1);
     // For the thumbnail extraction case, try to allocate single buffer in both
     // input and output ports, if seeking to a sync frame. NOTE: This request may
     // fail if component requires more than that for decoding.
@@ -229,7 +221,7 @@ static VideoFrame *extractVideoFrame(
         return NULL;
     }
 
-    Vector<sp<ABuffer> > inputBuffers;
+    Vector<sp<MediaCodecBuffer> > inputBuffers;
     err = decoder->getInputBuffers(&inputBuffers);
     if (err != OK) {
         ALOGW("failed to get input buffers: %d (%s)", err, asString(err));
@@ -238,7 +230,7 @@ static VideoFrame *extractVideoFrame(
         return NULL;
     }
 
-    Vector<sp<ABuffer> > outputBuffers;
+    Vector<sp<MediaCodecBuffer> > outputBuffers;
     err = decoder->getOutputBuffers(&outputBuffers);
     if (err != OK) {
         ALOGW("failed to get output buffers: %d (%s)", err, asString(err));
@@ -270,7 +262,7 @@ static VideoFrame *extractVideoFrame(
         size_t inputIndex = -1;
         int64_t ptsUs = 0ll;
         uint32_t flags = 0;
-        sp<ABuffer> codecBuffer = NULL;
+        sp<MediaCodecBuffer> codecBuffer = NULL;
 
         while (haveMoreInputs) {
             err = decoder->dequeueInputBuffer(&inputIndex, kBufferTimeOutUs);
@@ -382,7 +374,7 @@ static VideoFrame *extractVideoFrame(
     }
 
     ALOGV("successfully decoded video frame.");
-    sp<ABuffer> videoFrameBuffer = outputBuffers.itemAt(index);
+    sp<MediaCodecBuffer> videoFrameBuffer = outputBuffers.itemAt(index);
 
     if (thumbNailTime >= 0) {
         if (timeUs != thumbNailTime) {
@@ -394,11 +386,9 @@ static VideoFrame *extractVideoFrame(
         }
     }
 
-    int32_t width, height, stride, slice_height;
+    int32_t width, height;
     CHECK(outputFormat->findInt32("width", &width));
     CHECK(outputFormat->findInt32("height", &height));
-    CHECK(outputFormat->findInt32("stride", &stride));
-    CHECK(outputFormat->findInt32("slice-height", &slice_height));
 
     int32_t crop_left, crop_top, crop_right, crop_bottom;
     if (!outputFormat->findRect("crop", &crop_left, &crop_top, &crop_right, &crop_bottom)) {
@@ -426,6 +416,22 @@ static VideoFrame *extractVideoFrame(
             && trackMeta->findInt32(kKeySARHeight, &sarHeight)
             && sarHeight != 0) {
         frame->mDisplayWidth = (frame->mDisplayWidth * sarWidth) / sarHeight;
+    } else {
+        int32_t width, height;
+        if (trackMeta->findInt32(kKeyDisplayWidth, &width)
+                && trackMeta->findInt32(kKeyDisplayHeight, &height)
+                && frame->mDisplayWidth > 0 && frame->mDisplayHeight > 0
+                && width > 0 && height > 0) {
+            if (frame->mDisplayHeight * (int64_t)width / height > (int64_t)frame->mDisplayWidth) {
+                frame->mDisplayHeight =
+                        (int32_t)(height * (int64_t)frame->mDisplayWidth / width);
+            } else {
+                frame->mDisplayWidth =
+                        (int32_t)(frame->mDisplayHeight * (int64_t)width / height);
+            }
+            ALOGV("thumbNail width and height are overridden to %d x %d",
+                    frame->mDisplayWidth, frame->mDisplayHeight);
+        }
     }
 
     int32_t srcFormat;
@@ -436,7 +442,7 @@ static VideoFrame *extractVideoFrame(
     if (converter.isValid()) {
         err = converter.convert(
                 (const uint8_t *)videoFrameBuffer->data(),
-                stride, slice_height,
+                width, height,
                 crop_left, crop_top, crop_right, crop_bottom,
                 frame->mData,
                 frame->mWidth,
@@ -529,21 +535,11 @@ VideoFrame *StagefrightMetadataRetriever::getFrameAtTime(
     MediaCodecList::findMatchingCodecs(
             mime,
             false, /* encoder */
-            0 /* MediaCodecList::kPreferSoftwareCodecs */,
+            MediaCodecList::kPreferSoftwareCodecs,
             &matchingCodecs);
 
     for (size_t i = 0; i < matchingCodecs.size(); ++i) {
-        AString componentName;
-        const char* ffmpegComponentName =
-            FFMPEGSoftCodec::overrideComponentName(0, trackMeta, mime, false);
-        if (ffmpegComponentName != NULL) {
-            ALOGV("override compoent %s to %s for video frame extraction.",
-                    matchingCodecs[i].c_str(), ffmpegComponentName);
-            componentName.setTo(ffmpegComponentName);
-        } else {
-            componentName = matchingCodecs[i];
-        }
-
+        const AString &componentName = matchingCodecs[i];
         VideoFrame *frame =
             extractVideoFrame(componentName, trackMeta, source, timeUs, option);
 
@@ -772,9 +768,9 @@ void StagefrightMetadataRetriever::parseMetaData() {
 
     if (numTracks == 1) {
         const char *fileMIME;
-        CHECK(meta->findCString(kKeyMIMEType, &fileMIME));
 
-        if (!strcasecmp(fileMIME, "video/x-matroska")) {
+        if (meta->findCString(kKeyMIMEType, &fileMIME) &&
+                !strcasecmp(fileMIME, "video/x-matroska")) {
             sp<MetaData> trackMeta = mExtractor->getTrackMetaData(0);
             const char *trackMIME;
             CHECK(trackMeta->findCString(kKeyMIMEType, &trackMIME));
@@ -786,11 +782,6 @@ void StagefrightMetadataRetriever::parseMetaData() {
                         METADATA_KEY_MIMETYPE, String8("audio/x-matroska"));
             }
         }
-    }
-
-    // To check whether the media file is drm-protected
-    if (mExtractor->getDrmFlag()) {
-        mMetaData.add(METADATA_KEY_IS_DRM, String8("1"));
     }
 }
 

@@ -75,8 +75,8 @@ struct BundledEffectContext{
     bool                            bVirtualizerTempDisabled; /* Flag for effect to be re-enabled */
     audio_devices_t                 nOutputDevice;            /* Output device for the effect */
     audio_devices_t                 nVirtualizerForcedDevice; /* Forced device virtualization mode*/
+    int                             NumberEffectsEnabled;     /* Effects in this session */
     int                             NumberEffectsCalled;      /* Effects called so far */
-    uint32_t                        EffectsBitMap;            /* Effects enable bit mask */
     bool                            firstVolume;              /* No smoothing on first Vol change */
     // Saved parameters for each effect */
     // Bass Boost
@@ -140,7 +140,7 @@ static const uint32_t bandFreqRange[FIVEBAND_NUMBANDS][2] = {
                                        {120001, 460000},
                                        {460001, 1800000},
                                        {1800001, 7000000},
-                                       {7000001, 1}};
+                                       {7000001, 20000000}};
 
 //Note: If these frequencies change, please update LimitLevel values accordingly.
 static const LVM_UINT16  EQNB_5BandPresetsFrequencies[] = {

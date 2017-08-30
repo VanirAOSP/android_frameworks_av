@@ -23,13 +23,10 @@
 #include <cutils/misc.h>
 #include <media/AudioEffect.h>
 #include <system/audio.h>
-#include <hardware/audio_effect.h>
 #include <utils/Vector.h>
 #include <utils/SortedVector.h>
 
 namespace android {
-
-class AudioPolicyService;
 
 // ----------------------------------------------------------------------------
 
@@ -44,7 +41,7 @@ public:
     // The constructor will parse audio_effects.conf
     // First it will look whether vendor specific file exists,
     // otherwise it will parse the system default file.
-            AudioPolicyEffects(AudioPolicyService *audioPolicyService);
+	         AudioPolicyEffects();
     virtual ~AudioPolicyEffects();
 
     // NOTE: methods on AudioPolicyEffects should never be called with the AudioPolicyService
@@ -64,7 +61,8 @@ public:
                              audio_session_t audioSession);
 
     // Add all input effects associated to this input
-    status_t releaseInputEffects(audio_io_handle_t input);
+    status_t releaseInputEffects(audio_io_handle_t input,
+                                 audio_session_t audioSession);
 
 
     // Return a list of effect descriptors for default output effects
@@ -83,19 +81,6 @@ public:
     status_t releaseOutputSessionEffects(audio_io_handle_t output,
                              audio_stream_type_t stream,
                              audio_session_t audioSession);
-
-    status_t updateOutputAudioSessionInfo(audio_io_handle_t output,
-                             audio_stream_type_t stream,
-                             audio_session_t audioSession,
-                             audio_output_flags_t flags,
-                             audio_channel_mask_t channelMask, uid_t uid);
-
-    status_t releaseOutputAudioSessionInfo(audio_io_handle_t output,
-                             audio_stream_type_t stream,
-                             audio_session_t audioSession);
-
-    status_t listAudioSessions(audio_stream_type_t streams,
-                             Vector< sp<AudioSessionInfo>> &sessions);
 
 private:
 
@@ -150,7 +135,7 @@ private:
     // class to store voctor of AudioEffects
     class EffectVector {
     public:
-        EffectVector(audio_session_t session) : mSessionId(session), mRefCount(0) {}
+        explicit EffectVector(audio_session_t session) : mSessionId(session), mRefCount(0) {}
         /*virtual*/ ~EffectVector() {}
 
         // Enable or disable all effects in effect vector
@@ -193,21 +178,17 @@ private:
                          size_t *curSize,
                          size_t *totSize);
 
-    // protects access to mInputSources, mInputs, mOutputStreams, mOutputSessions
+    // protects access to mInputSources, mInputSessions, mOutputStreams, mOutputSessions
     Mutex mLock;
     // Automatic input effects are configured per audio_source_t
     KeyedVector< audio_source_t, EffectDescVector* > mInputSources;
     // Automatic input effects are unique for audio_io_handle_t
-    KeyedVector< audio_io_handle_t, EffectVector* > mInputs;
+    KeyedVector< audio_session_t, EffectVector* > mInputSessions;
 
     // Automatic output effects are organized per audio_stream_type_t
     KeyedVector< audio_stream_type_t, EffectDescVector* > mOutputStreams;
     // Automatic output effects are unique for audiosession ID
     KeyedVector< audio_session_t, EffectVector* > mOutputSessions;
-    // Stream info for session events
-    KeyedVector< audio_session_t, sp<AudioSessionInfo> > mOutputAudioSessionInfo;
-
-    AudioPolicyService *mAudioPolicyService;
 };
 
 }; // namespace android

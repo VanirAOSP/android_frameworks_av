@@ -70,9 +70,6 @@ private:
         AWAITING_ENABLED
     } mOutputPortSettingsChange;
 
-    int64_t mLastAnchorTimeUs;
-    int64_t mNextOutBufferTimeUs;
-
     void initPorts();
     void initDecoder();
     void *memsetSafe(OMX_BUFFERHEADERTYPE *outHeader, int c, size_t len);

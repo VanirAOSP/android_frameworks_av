@@ -16,25 +16,11 @@
 //#define LOG_NDEBUG 0
 #define LOG_TAG "DataSource"
 
-#include "include/AMRExtractor.h"
-
-#include "include/AACExtractor.h"
 #include "include/CallbackDataSource.h"
-#include "include/DRMExtractor.h"
-#include "include/FLACExtractor.h"
 #include "include/HTTPBase.h"
-#include "include/MidiExtractor.h"
-#include "include/MP3Extractor.h"
-#include "include/MPEG2PSExtractor.h"
-#include "include/MPEG2TSExtractor.h"
-#include "include/MPEG4Extractor.h"
 #include "include/NuCachedSource2.h"
-#include "include/OggExtractor.h"
-#include "include/WAVExtractor.h"
-#include "include/WVMExtractor.h"
 
-#include "matroska/MatroskaExtractor.h"
-
+#include <media/IDataSource.h>
 #include <media/IMediaHTTPConnection.h>
 #include <media/IMediaHTTPService.h>
 #include <media/stagefright/foundation/ADebug.h>
@@ -44,15 +30,13 @@
 #include <media/stagefright/FileSource.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/MediaHTTP.h>
+#include <media/stagefright/RemoteDataSource.h>
+#include <media/stagefright/Utils.h>
 #include <utils/String8.h>
 
 #include <cutils/properties.h>
-#include <cutils/log.h>
 
 #include <private/android_filesystem_config.h>
-#include <stagefright/AVExtensions.h>
-
-#include <media/stagefright/FFMPEGSoftCodec.h>
 
 namespace android {
 
@@ -114,99 +98,11 @@ status_t DataSource::getSize(off64_t *size) {
     return ERROR_UNSUPPORTED;
 }
 
+sp<IDataSource> DataSource::getIDataSource() const {
+    return nullptr;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
-
-Mutex DataSource::gSnifferMutex;
-List<DataSource::SnifferFunc> DataSource::gSniffers;
-bool DataSource::gSniffersRegistered = false;
-
-bool DataSource::sniff(
-        String8 *mimeType, float *confidence, sp<AMessage> *meta) {
-
-
-    *mimeType = "";
-    *confidence = 0.0f;
-    meta->clear();
-
-    {
-        Mutex::Autolock autoLock(gSnifferMutex);
-        if (!gSniffersRegistered) {
-            return false;
-        }
-    }
-
-    String8 newMimeType;
-    if (mimeType != NULL) {
-        newMimeType.setTo(*mimeType);
-    }
-
-    for (List<SnifferFunc>::iterator it = gSniffers.begin();
-         it != gSniffers.end(); ++it) {
-        int64_t sniffStart = ALooper::GetNowUs();
-        String8 newMimeType = *mimeType;
-        float newConfidence = *confidence;
-        sp<AMessage> newMeta = *meta;
-        if (*it != NULL && (*it)(this, &newMimeType, &newConfidence, &newMeta)) {
-            if (newConfidence > *confidence) {
-                *mimeType = newMimeType;
-                *confidence = newConfidence;
-                *meta = newMeta;
-            }
-        }
-
-        ALOGV("Sniffer (%p) completed in %.2f ms (mime=%s confidence=%.2f",
-                this, ((float)(ALooper::GetNowUs() - sniffStart) / 1000.0f),
-                mimeType == NULL ? NULL : (*mimeType).string(), *confidence);
-    }
-
-    return *confidence > 0.0;
-}
-
-// static
-void DataSource::RegisterSniffer_l(SnifferFunc func) {
-    for (List<SnifferFunc>::iterator it = gSniffers.begin();
-         it != gSniffers.end(); ++it) {
-        if (*it == func) {
-            return;
-        }
-    }
-
-    gSniffers.push_back(func);
-}
-
-// static
-void DataSource::RegisterDefaultSniffers() {
-    Mutex::Autolock autoLock(gSnifferMutex);
-    if (gSniffersRegistered) {
-        return;
-    }
-
-    RegisterSniffer_l(SniffMPEG4);
-    RegisterSniffer_l(SniffMatroska);
-    RegisterSniffer_l(SniffOgg);
-    RegisterSniffer_l(SniffWAV);
-    RegisterSniffer_l(SniffFLAC);
-    RegisterSniffer_l(SniffAMR);
-    RegisterSniffer_l(SniffMPEG2TS);
-    RegisterSniffer_l(SniffMP3);
-    RegisterSniffer_l(SniffAAC);
-    RegisterSniffer_l(SniffMPEG2PS);
-    if (getuid() == AID_MEDIA) {
-        // WVM only in the media server process
-        RegisterSniffer_l(SniffWVM);
-    }
-    RegisterSniffer_l(SniffMidi);
-    RegisterSniffer_l(AVUtils::get()->getExtendedSniffer());
-    RegisterSniffer_l(FFMPEGSoftCodec::getSniffer());
-
-    char value[PROPERTY_VALUE_MAX];
-    if (property_get("drm.service.enabled", value, NULL)
-            && (!strcmp(value, "1") || !strcasecmp(value, "true"))) {
-        RegisterSniffer_l(SniffDRM);
-    }
-
-    gSniffersRegistered = true;
-}
 
 // static
 sp<DataSource> DataSource::CreateFromURI(
@@ -219,14 +115,10 @@ sp<DataSource> DataSource::CreateFromURI(
         *contentType = "";
     }
 
-    bool isWidevine = !strncasecmp("widevine://", uri, 11);
-
     sp<DataSource> source;
     if (!strncasecmp("file://", uri, 7)) {
         source = new FileSource(uri + 7);
-    } else if (!strncasecmp("http://", uri, 7)
-            || !strncasecmp("https://", uri, 8)
-            || isWidevine) {
+    } else if (!strncasecmp("http://", uri, 7) || !strncasecmp("https://", uri, 8)) {
         if (httpService == NULL) {
             ALOGE("Invalid http service!");
             return NULL;
@@ -241,16 +133,8 @@ sp<DataSource> DataSource::CreateFromURI(
             httpSource = new MediaHTTP(conn);
         }
 
-        String8 tmp;
-        if (isWidevine) {
-            tmp = String8("http://");
-            tmp.append(uri + 11);
-
-            uri = tmp.string();
-        }
-
         String8 cacheConfig;
-        bool disconnectAtHighwatermark;
+        bool disconnectAtHighwatermark = false;
         KeyedVector<String8, String8> nonCacheSpecificHeaders;
         if (headers != NULL) {
             nonCacheSpecificHeaders = *headers;
@@ -265,20 +149,14 @@ sp<DataSource> DataSource::CreateFromURI(
             return NULL;
         }
 
-        if (!isWidevine) {
-            if (contentType != NULL) {
-                *contentType = httpSource->getMIMEType();
-            }
-
-            source = NuCachedSource2::Create(
-                    httpSource,
-                    cacheConfig.isEmpty() ? NULL : cacheConfig.string(),
-                    disconnectAtHighwatermark);
-        } else {
-            // We do not want that prefetching, caching, datasource wrapper
-            // in the widevine:// case.
-            source = httpSource;
+        if (contentType != NULL) {
+            *contentType = httpSource->getMIMEType();
         }
+
+        source = NuCachedSource2::Create(
+                httpSource,
+                cacheConfig.isEmpty() ? NULL : cacheConfig.string(),
+                disconnectAtHighwatermark);
     } else if (!strncasecmp("data:", uri, 5)) {
         source = DataURISource::Create(uri);
     } else {
@@ -291,6 +169,11 @@ sp<DataSource> DataSource::CreateFromURI(
     }
 
     return source;
+}
+
+sp<DataSource> DataSource::CreateFromFd(int fd, int64_t offset, int64_t length) {
+    sp<FileSource> source = new FileSource(fd, offset, length);
+    return source->initCheck() != OK ? nullptr : source;
 }
 
 sp<DataSource> DataSource::CreateMediaHTTP(const sp<IMediaHTTPService> &httpService) {
@@ -312,6 +195,10 @@ sp<DataSource> DataSource::CreateFromIDataSource(const sp<IDataSource> &source) 
 
 String8 DataSource::getMIMEType() const {
     return String8("application/octet-stream");
+}
+
+sp<IDataSource> DataSource::asIDataSource() {
+    return RemoteDataSource::wrap(sp<DataSource>(this));
 }
 
 }  // namespace android

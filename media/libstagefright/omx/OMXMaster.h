@@ -52,14 +52,15 @@ struct OMXMaster : public OMXPluginBase {
 private:
     char mProcessName[16];
     Mutex mLock;
-    KeyedVector<OMXPluginBase *, void *> mPlugins;
+    List<OMXPluginBase *> mPlugins;
     KeyedVector<String8, OMXPluginBase *> mPluginByComponentName;
     KeyedVector<OMX_COMPONENTTYPE *, OMXPluginBase *> mPluginByInstance;
 
+    void *mVendorLibHandle;
+
     void addVendorPlugin();
-    void addUserPlugin();
     void addPlugin(const char *libname);
-    void addPlugin(OMXPluginBase *plugin, void *handle = NULL);
+    void addPlugin(OMXPluginBase *plugin);
     void clearPlugins();
 
     OMXMaster(const OMXMaster &);

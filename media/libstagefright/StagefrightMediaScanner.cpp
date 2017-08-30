@@ -28,7 +28,6 @@
 #include <media/mediametadataretriever.h>
 #include <private/media/VideoFrame.h>
 
-#include <stagefright/AVExtensions.h>
 namespace android {
 
 StagefrightMediaScanner::StagefrightMediaScanner() {}
@@ -41,11 +40,7 @@ static bool FileHasAcceptableExtension(const char *extension) {
         ".mpeg", ".ogg", ".mid", ".smf", ".imy", ".wma", ".aac",
         ".wav", ".amr", ".midi", ".xmf", ".rtttl", ".rtx", ".ota",
         ".mkv", ".mka", ".webm", ".ts", ".fl", ".flac", ".mxmf",
-        ".avi", ".mpeg", ".mpg", ".awb", ".mpga", ".mov", ".adts",
-        ".dm", ".m2ts", ".mp3d", ".wmv", ".asf", ".flv", ".ra",
-        ".rm", ".rmvb", ".ac3", ".ape", ".dts", ".mp1", ".mp2",
-        ".f4v", "hlv", "nrg", "m2v", ".swf", ".vc1", ".vob",
-        ".divx", ".qcp", ".ec3", ".opus"
+        ".avi", ".mpeg", ".mpg", ".awb", ".mpga", ".mov"
     };
     static const size_t kNumValidExtensions =
         sizeof(kValidExtensions) / sizeof(kValidExtensions[0]);
@@ -80,8 +75,7 @@ MediaScanResult StagefrightMediaScanner::processFileInternal(
         return MEDIA_SCAN_RESULT_SKIPPED;
     }
 
-    if (!FileHasAcceptableExtension(extension)
-        && !AVUtils::get()->isEnhancedExtension(extension)) {
+    if (!FileHasAcceptableExtension(extension)) {
         return MEDIA_SCAN_RESULT_SKIPPED;
     }
 
@@ -124,7 +118,6 @@ MediaScanResult StagefrightMediaScanner::processFileInternal(
         { "genre", METADATA_KEY_GENRE },
         { "title", METADATA_KEY_TITLE },
         { "year", METADATA_KEY_YEAR },
-        { "date", METADATA_KEY_DATE },
         { "duration", METADATA_KEY_DURATION },
         { "writer", METADATA_KEY_WRITER },
         { "compilation", METADATA_KEY_COMPILATION },

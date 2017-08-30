@@ -14,9 +14,6 @@
 
 LOCAL_PATH:= $(call my-dir)
 
-ifeq ($(TARGET_HAS_LEGACY_CAMERA_HAL1),true)
-$(warning Target has integrated cameraserver into mediaserver. This is weakening security measures introduced in 7.0)
-else
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:= \
@@ -24,10 +21,17 @@ LOCAL_SRC_FILES:= \
 
 LOCAL_SHARED_LIBRARIES := \
 	libcameraservice \
-	libcutils \
+	liblog \
 	libutils \
+	libui \
+	libgui \
 	libbinder \
-	libcamera_client
+	libhidltransport \
+	android.hardware.camera.common@1.0 \
+	android.hardware.camera.provider@2.4 \
+	android.hardware.camera.device@1.0 \
+	android.hardware.camera.device@3.2 \
+	android.hidl.manager@1.0
 
 LOCAL_MODULE:= cameraserver
 LOCAL_32_BIT_ONLY := true
@@ -37,4 +41,3 @@ LOCAL_CFLAGS += -Wall -Wextra -Werror -Wno-unused-parameter
 LOCAL_INIT_RC := cameraserver.rc
 
 include $(BUILD_EXECUTABLE)
-endif
